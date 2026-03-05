@@ -83,12 +83,11 @@ const (
 )
 
 type local struct {
-	nriMu     sync.Mutex // protects nri field
-	cfg       *config.Config
-	nri       *nri.Adaptation
-
-	stateMu   sync.Mutex // protects state map
-	state     map[string]State
+	nriMu   sync.Mutex // protects nri field
+	cfg     *config.Config
+	nri     *nri.Adaptation
+	stateMu sync.Mutex // protects state map
+	state   map[string]State
 }
 
 var _ API = &local{}
@@ -245,8 +244,14 @@ func (l *local) CreateContainer(ctx context.Context, pod PodSandbox, ctr Contain
 		Container: containerToNRI(ctr),
 	}
 
+	// Call into NRI without holding locks (can block on plugin operations)
 	response, err := nriInstance.CreateContainer(ctx, request)
-	l.setState(request.GetContainer().GetId(), Created)
+
+	// Serialize post-processing to ensure consistent ordering
+	l.stateMu.Lock()
+	defer l.stateMu.Unlock()
+
+	l.setStateNoLock(request.GetContainer().GetId(), Created)
 
 	if err != nil {
 		return nil, err
@@ -292,9 +297,13 @@ func (l *local) StartContainer(ctx context.Context, pod PodSandbox, ctr Containe
 		Container: containerToNRI(ctr),
 	}
 
+	// Call into NRI without holding locks (can block on plugin operations)
 	err := nriInstance.StartContainer(ctx, request)
 
-	l.setState(request.GetContainer().GetId(), Running)
+	// Serialize state update
+	l.stateMu.Lock()
+	l.setStateNoLock(request.GetContainer().GetId(), Running)
+	l.stateMu.Unlock()
 
 	return err
 }
@@ -399,8 +408,14 @@ func (l *local) stopContainer(ctx context.Context, pod PodSandbox, ctr Container
 		Container: containerToNRI(ctr),
 	}
 
+	// Call into NRI without holding locks (can block on plugin operations)
 	response, err := nriInstance.StopContainer(ctx, request)
-	l.setState(request.GetContainer().GetId(), Stopped)
+
+	// Serialize post-processing to ensure consistent ordering
+	l.stateMu.Lock()
+	defer l.stateMu.Unlock()
+
+	l.setStateNoLock(request.GetContainer().GetId(), Stopped)
 
 	if err != nil {
 		return err
@@ -433,8 +448,13 @@ func (l *local) RemoveContainer(ctx context.Context, pod PodSandbox, ctr Contain
 		Container: containerToNRI(ctr),
 	}
 
+	// Call into NRI without holding locks (can block on plugin operations)
 	err := nriInstance.RemoveContainer(ctx, request)
-	l.setState(request.GetContainer().GetId(), Removed)
+
+	// Serialize state update
+	l.stateMu.Lock()
+	l.setStateNoLock(request.GetContainer().GetId(), Removed)
+	l.stateMu.Unlock()
 
 	return err
 }
@@ -499,6 +519,12 @@ func (l *local) setState(id string, state State) {
 	l.stateMu.Lock()
 	defer l.stateMu.Unlock()
 
+	l.setStateNoLock(id, state)
+}
+
+// setStateNoLock updates container state without acquiring the mutex.
+// Caller must hold stateMu.
+func (l *local) setStateNoLock(id string, state State) {
 	if state != Removed {
 		l.state[id] = state
 
