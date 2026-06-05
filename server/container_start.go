@@ -112,17 +112,15 @@ func (s *Server) StartContainer(ctx context.Context, req *types.StartContainerRe
 
 	// DEBUG: Log spec mounts before starting container
 	spec := c.Spec()
-	if spec != nil {
-		for i, mnt := range spec.Mounts {
-			if strings.Contains(mnt.Destination, "serviceaccount") {
-				log.Infof(ctx, "[DEBUG-IDMAP] StartContainer %s: Mount[%d]: dest=%s, src=%s, hasUidMappings=%v, hasGidMappings=%v",
-					c.ID(), i, mnt.Destination, mnt.Source, len(mnt.UIDMappings) > 0, len(mnt.GIDMappings) > 0)
-				if len(mnt.UIDMappings) > 0 {
-					log.Infof(ctx, "[DEBUG-IDMAP] StartContainer %s: Mount[%d] UIDMappings: %+v", c.ID(), i, mnt.UIDMappings)
-				}
-				if len(mnt.GIDMappings) > 0 {
-					log.Infof(ctx, "[DEBUG-IDMAP] StartContainer %s: Mount[%d] GIDMappings: %+v", c.ID(), i, mnt.GIDMappings)
-				}
+	for i, mnt := range spec.Mounts {
+		if strings.Contains(mnt.Destination, "serviceaccount") {
+			log.Infof(ctx, "[DEBUG-IDMAP] StartContainer %s: Mount[%d]: dest=%s, src=%s, hasUidMappings=%v, hasGidMappings=%v",
+				c.ID(), i, mnt.Destination, mnt.Source, len(mnt.UIDMappings) > 0, len(mnt.GIDMappings) > 0)
+			if len(mnt.UIDMappings) > 0 {
+				log.Infof(ctx, "[DEBUG-IDMAP] StartContainer %s: Mount[%d] UIDMappings: %+v", c.ID(), i, mnt.UIDMappings)
+			}
+			if len(mnt.GIDMappings) > 0 {
+				log.Infof(ctx, "[DEBUG-IDMAP] StartContainer %s: Mount[%d] GIDMappings: %+v", c.ID(), i, mnt.GIDMappings)
 			}
 		}
 	}
