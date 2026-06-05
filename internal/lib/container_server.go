@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -580,8 +581,36 @@ func (c *ContainerServer) LoadContainer(ctx context.Context, id string) (retErr 
 		return err
 	}
 
+	// DEBUG: Log mount configuration before restoreVolumes
+	for i, mnt := range m.Mounts {
+		if strings.Contains(mnt.Destination, "serviceaccount") {
+			logrus.Infof("[DEBUG-IDMAP] LoadContainer %s: BEFORE restoreVolumes - Mount[%d]: dest=%s, src=%s, hasUidMappings=%v, hasGidMappings=%v",
+				id, i, mnt.Destination, mnt.Source, len(mnt.UIDMappings) > 0, len(mnt.GIDMappings) > 0)
+			if len(mnt.UIDMappings) > 0 {
+				logrus.Infof("[DEBUG-IDMAP] LoadContainer %s: Mount[%d] UIDMappings: %+v", id, i, mnt.UIDMappings)
+			}
+			if len(mnt.GIDMappings) > 0 {
+				logrus.Infof("[DEBUG-IDMAP] LoadContainer %s: Mount[%d] GIDMappings: %+v", id, i, mnt.GIDMappings)
+			}
+		}
+	}
+
 	if err := restoreVolumes(&m, ctr); err != nil {
 		return fmt.Errorf("restore volumes: %w", err)
+	}
+
+	// DEBUG: Log mount configuration after restoreVolumes
+	for i, mnt := range m.Mounts {
+		if strings.Contains(mnt.Destination, "serviceaccount") {
+			logrus.Infof("[DEBUG-IDMAP] LoadContainer %s: AFTER restoreVolumes - Mount[%d]: dest=%s, src=%s, hasUidMappings=%v, hasGidMappings=%v",
+				id, i, mnt.Destination, mnt.Source, len(mnt.UIDMappings) > 0, len(mnt.GIDMappings) > 0)
+			if len(mnt.UIDMappings) > 0 {
+				logrus.Infof("[DEBUG-IDMAP] LoadContainer %s: Mount[%d] UIDMappings: %+v", id, i, mnt.UIDMappings)
+			}
+			if len(mnt.GIDMappings) > 0 {
+				logrus.Infof("[DEBUG-IDMAP] LoadContainer %s: Mount[%d] GIDMappings: %+v", id, i, mnt.GIDMappings)
+			}
+		}
 	}
 
 	ctr.SetSpec(&m)
