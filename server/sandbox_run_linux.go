@@ -373,7 +373,7 @@ func (s *Server) getSandboxIDMappings(ctx context.Context, sb *libsandbox.Sandbo
 	}
 
 	// UsernsMode() is empty but UserNsPath() is set when the cri-o restarts and container is killed
-	if sb.UsernsMode() == "" && sb.UserNsPath() == "" && s.defaultIDMappings == nil {
+	if sb.UsernsMode() == "" && s.defaultIDMappings == nil {
 		return nil, nil
 	}
 
