@@ -71,8 +71,11 @@ func (c *ContainerServer) recreateUserNamespace(ctx context.Context, sb *sandbox
 	_, span := log.StartSpan(ctx)
 	defer span.End()
 
+	log.Infof(ctx, "recreateUserNamespace called for sandbox %s with mode %v", sb.ID(), usernsOpts.GetMode())
+
 	// Convert UserNamespace to IDMappings
 	if usernsOpts.GetMode() != types.NamespaceMode_POD {
+		log.Infof(ctx, "User namespace mode is not POD (mode: %v), skipping recreation", usernsOpts.GetMode())
 		return nil // Only handle POD mode
 	}
 
@@ -95,6 +98,7 @@ func (c *ContainerServer) recreateUserNamespace(ctx context.Context, sb *sandbox
 	}
 
 	idMappings := idtools.NewIDMappingsFromMaps(uids, gids)
+	log.Infof(ctx, "Created ID mappings with %d UID mappings and %d GID mappings", len(uids), len(gids))
 
 	// Create the user namespace using the namespace manager
 	nsCfg := &nsmgr.PodNamespacesConfig{
@@ -104,23 +108,28 @@ func (c *ContainerServer) recreateUserNamespace(ctx context.Context, sb *sandbox
 		IDMappings: idMappings,
 	}
 
+	log.Infof(ctx, "Calling NewPodNamespaces to create user namespace")
 	namespaces, err := c.config.NamespaceManager().NewPodNamespaces(nsCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create user namespace: %w", err)
 	}
+	log.Infof(ctx, "NewPodNamespaces succeeded, created %d namespaces", len(namespaces))
 
 	if len(namespaces) != 1 {
 		return fmt.Errorf("expected 1 namespace, got %d", len(namespaces))
 	}
 
 	// Join the newly created user namespace
-	if err := sb.UserNsJoin(namespaces[0].Path()); err != nil {
+	nsPath := namespaces[0].Path()
+	log.Infof(ctx, "Attempting to join user namespace at path: %s", nsPath)
+	if err := sb.UserNsJoin(nsPath); err != nil {
 		// Clean up on failure
 		if removeErr := namespaces[0].Remove(); removeErr != nil {
 			log.Errorf(ctx, "Failed to remove user namespace after join failure: %v", removeErr)
 		}
 		return fmt.Errorf("failed to join recreated user namespace: %w", err)
 	}
+	log.Infof(ctx, "Successfully joined user namespace at path: %s", nsPath)
 
 	return nil
 }
