@@ -372,7 +372,8 @@ func (s *Server) getSandboxIDMappings(ctx context.Context, sb *libsandbox.Sandbo
 		}
 	}
 
-	if sb.UsernsMode() == "" && s.defaultIDMappings == nil {
+	// UsernsMode() is empty but UserNsPath() is set when the cri-o restarts and container is killed
+	if sb.UsernsMode() == "" && sb.UserNsPath() == "" && s.defaultIDMappings == nil {
 		return nil, nil
 	}
 
@@ -380,9 +381,32 @@ func (s *Server) getSandboxIDMappings(ctx context.Context, sb *libsandbox.Sandbo
 		return nil, errors.New("infra container not found")
 	}
 
-	uids, gids, err := unshare.GetHostIDMappings(strconv.Itoa(ic.State().Pid))
-	if err != nil {
-		return nil, err
+	icPid, err := ic.Pid()
+
+	var (
+		uids, gids []spec.LinuxIDMapping
+	)
+
+	// Treat PID errors the same as PID 0 - both indicate we should read from namespace options
+	if err != nil || icPid == 0 {
+		// Read the UID/GID mappings from the sandbox's namespace options
+		nsOpts := sb.NamespaceOptions()
+		if nsOpts == nil || nsOpts.GetUsernsOptions() == nil {
+			return nil, nil
+		}
+
+		usernsOpts := nsOpts.GetUsernsOptions()
+		uids = usernsOpts.GetUids()
+		gids = usernsOpts.GetGids()
+
+		if len(uids) == 0 || len(gids) == 0 {
+			return nil, nil
+		}
+	} else {
+		uids, gids, err = unshare.GetHostIDMappings(strconv.Itoa(icPid))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get ID mappings from infra container PID %d: %w", icPid, err)
+		}
 	}
 
 	mappings := convertToStorageIDMappings(uids, gids)
