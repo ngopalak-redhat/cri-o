@@ -396,11 +396,30 @@ func (s *Server) getSandboxIDMappings(ctx context.Context, sb *libsandbox.Sandbo
 		}
 
 		usernsOpts := nsOpts.GetUsernsOptions()
-		uids = usernsOpts.GetUids()
-		gids = usernsOpts.GetGids()
+		criUids := usernsOpts.GetUids()
+		criGids := usernsOpts.GetGids()
 
-		if len(uids) == 0 || len(gids) == 0 {
+		if len(criUids) == 0 || len(criGids) == 0 {
 			return nil, nil
+		}
+
+		// Convert from CRI-API types to OCI spec types
+		uids = make([]spec.LinuxIDMapping, len(criUids))
+		for i, m := range criUids {
+			uids[i] = spec.LinuxIDMapping{
+				ContainerID: m.GetContainerId(),
+				HostID:      m.GetHostId(),
+				Size:        m.GetLength(),
+			}
+		}
+
+		gids = make([]spec.LinuxIDMapping, len(criGids))
+		for i, m := range criGids {
+			gids[i] = spec.LinuxIDMapping{
+				ContainerID: m.GetContainerId(),
+				HostID:      m.GetHostId(),
+				Size:        m.GetLength(),
+			}
 		}
 	} else {
 		uids, gids, err = unshare.GetHostIDMappings(strconv.Itoa(icPid))
