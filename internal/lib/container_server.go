@@ -486,34 +486,35 @@ func (c *ContainerServer) recreateUserNamespace(ctx context.Context, sb *sandbox
 		return nil // Only handle POD mode
 	}
 
-	uids := make([]storage.IDMap, 0, len(usernsOpts.GetUids()))
+	uids := make([]cstorage.IDMap, 0, len(usernsOpts.GetUids()))
 	for _, idMap := range usernsOpts.GetUids() {
-		uids = append(uids, storage.IDMap{
+		uids = append(uids, cstorage.IDMap{
 			ContainerID: int(idMap.GetContainerId()),
 			HostID:      int(idMap.GetHostId()),
 			Size:        int(idMap.GetLength()),
 		})
 	}
 
-	gids := make([]storage.IDMap, 0, len(usernsOpts.GetGids()))
+	gids := make([]cstorage.IDMap, 0, len(usernsOpts.GetGids()))
 	for _, idMap := range usernsOpts.GetGids() {
-		gids = append(gids, storage.IDMap{
+		gids = append(gids, cstorage.IDMap{
 			ContainerID: int(idMap.GetContainerId()),
 			HostID:      int(idMap.GetHostId()),
 			Size:        int(idMap.GetLength()),
 		})
 	}
 
-	idMappings := storage.NewIDMappingOptions()
-	idMappings.UIDMap = uids
-	idMappings.GIDMap = gids
+	idMappingOpts := &cstorage.IDMappingOptions{
+		UIDMap: uids,
+		GIDMap: gids,
+	}
 
 	// Create the user namespace using the namespace manager
 	nsCfg := &nsmgr.PodNamespacesConfig{
 		Namespaces: []*nsmgr.PodNamespaceConfig{
 			{Type: nsmgr.USERNS},
 		},
-		IDMappings: idMappings.ToIDMappings(),
+		IDMappings: idMappingOpts.ToIDMappings(),
 	}
 
 	namespaces, err := c.config.NamespaceManager().NewPodNamespaces(nsCfg)
