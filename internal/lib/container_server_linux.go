@@ -71,8 +71,8 @@ func (c *ContainerServer) recreateUserNamespace(ctx context.Context, sb *sandbox
 	_, span := log.StartSpan(ctx)
 	defer span.End()
 
-	log.Infof(ctx, "recreateUserNamespace called for sandbox %s with mode %v, %d UID mappings, %d GID mappings",
-		sb.ID(), usernsOpts.GetMode(), len(usernsOpts.GetUids()), len(usernsOpts.GetGids()))
+	log.Infof(ctx, "recreateUserNamespace called for sandbox %s with mode %v (%d), %d UID mappings, %d GID mappings",
+		sb.ID(), usernsOpts.GetMode(), int32(usernsOpts.GetMode()), len(usernsOpts.GetUids()), len(usernsOpts.GetGids()))
 
 	// If there are no UID/GID mappings, nothing to recreate
 	if len(usernsOpts.GetUids()) == 0 && len(usernsOpts.GetGids()) == 0 {
@@ -80,10 +80,10 @@ func (c *ContainerServer) recreateUserNamespace(ctx context.Context, sb *sandbox
 		return nil
 	}
 
-	// If mode is explicitly set to something other than POD, skip
-	// Note: mode may be unset (0/NODE) even when mappings exist, so we check mappings first
-	if usernsOpts.GetMode() != types.NamespaceMode_POD && usernsOpts.GetMode() != types.NamespaceMode_NAMESPACE_MODE_UNKNOWN {
-		log.Infof(ctx, "User namespace mode is %v (not POD), but has mappings - this is unexpected, skipping recreation", usernsOpts.GetMode())
+	// Only recreate for POD mode (mode = 0)
+	// Other modes: CONTAINER (1), NODE (2), TARGET (3) don't need recreation
+	if usernsOpts.GetMode() != types.NamespaceMode_POD {
+		log.Infof(ctx, "User namespace mode is %v (%d), not POD - skipping recreation", usernsOpts.GetMode(), int32(usernsOpts.GetMode()))
 		return nil
 	}
 
