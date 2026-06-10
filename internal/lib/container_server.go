@@ -432,12 +432,15 @@ func (c *ContainerServer) LoadSandbox(ctx context.Context, id string) (sb *sandb
 
 	// If user namespace was not joined (path doesn't exist), recreate it from userns_options
 	log.Infof(ctx, "USERNS DEBUG: LoadSandbox for %s - nsOpts.GetUsernsOptions()=%v, sb.UserNsPath()=%s", id, nsOpts.GetUsernsOptions() != nil, sb.UserNsPath())
-	if nsOpts.GetUsernsOptions() != nil && sb.UserNsPath() == "" {
-		log.Infof(ctx, "User namespace path is empty for sandbox %s, attempting to recreate from userns_options", id)
-		if err := c.recreateUserNamespace(ctx, sb, nsOpts.GetUsernsOptions()); err != nil {
-			return sb, fmt.Errorf("failed to recreate user namespace: %w", err)
+	if nsOpts.GetUsernsOptions() != nil && sb.UserNsPath() != "" {
+		// Check if the user namespace path actually exists
+		if _, err := os.Stat(sb.UserNsPath()); os.IsNotExist(err) {
+			log.Infof(ctx, "User namespace path %s does not exist for sandbox %s, attempting to recreate from userns_options", sb.UserNsPath(), id)
+			if err := c.recreateUserNamespace(ctx, sb, nsOpts.GetUsernsOptions()); err != nil {
+				return sb, fmt.Errorf("failed to recreate user namespace: %w", err)
+			}
+			log.Infof(ctx, "Successfully recreated user namespace for sandbox %s at path %s", id, sb.UserNsPath())
 		}
-		log.Infof(ctx, "Successfully recreated user namespace for sandbox %s at path %s", id, sb.UserNsPath())
 	}
 
 	if err := scontainer.FromDisk(); err != nil {
