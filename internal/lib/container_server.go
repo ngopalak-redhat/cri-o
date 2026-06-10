@@ -460,7 +460,12 @@ func (c *ContainerServer) LoadSandbox(ctx context.Context, id string) (sb *sandb
 					needsRecreate = true
 				}
 			} else {
-				log.Infof(ctx, "USERNS DEBUG: Path EXISTS: %s (mode: %v, size: %d) - no need to recreate", userNsPath, statInfo.Mode(), statInfo.Size())
+				// Path exists - we need to join it even though we don't need to recreate it
+				log.Infof(ctx, "USERNS DEBUG: Path EXISTS: %s (mode: %v, size: %d) - joining existing namespace", userNsPath, statInfo.Mode(), statInfo.Size())
+				if err := sb.UserNsJoin(userNsPath); err != nil {
+					return sb, fmt.Errorf("failed to join existing user namespace at %s: %w", userNsPath, err)
+				}
+				log.Infof(ctx, "USERNS DEBUG: Successfully joined existing user namespace at %s", userNsPath)
 			}
 		}
 
