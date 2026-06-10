@@ -270,8 +270,16 @@ func (c *ContainerServer) LoadSandbox(ctx context.Context, id string) (sb *sandb
 	hostNetwork := isTrue(m.Annotations[annotations.HostNetwork])
 
 	nsOpts := types.NamespaceOption{}
-	if err := json.Unmarshal([]byte(m.Annotations[annotations.NamespaceOptions]), &nsOpts); err != nil {
+	nsOptsJSON := m.Annotations[annotations.NamespaceOptions]
+	log.Infof(ctx, "USERNS DEBUG: NamespaceOptions annotation for %s: %s", id[:12], nsOptsJSON)
+	if err := json.Unmarshal([]byte(nsOptsJSON), &nsOpts); err != nil {
 		return nil, fmt.Errorf("error unmarshalling %s annotation: %w", annotations.NamespaceOptions, err)
+	}
+	if nsOpts.GetUsernsOptions() != nil {
+		log.Infof(ctx, "USERNS DEBUG: After unmarshal - UsernsOptions: mode=%v, %d UIDs, %d GIDs",
+			nsOpts.GetUsernsOptions().GetMode(),
+			len(nsOpts.GetUsernsOptions().GetUids()),
+			len(nsOpts.GetUsernsOptions().GetGids()))
 	}
 
 	created, err := time.Parse(time.RFC3339Nano, m.Annotations[annotations.Created])
