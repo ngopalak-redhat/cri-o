@@ -66,9 +66,12 @@ func (s *Server) finalizeUserMapping(sb *sandbox.Sandbox, specgen *generate.Gene
 		return
 	}
 
-	if usernsMode, _ := v2.GetAnnotationValue(sb.Annotations(), v2.UsernsMode); usernsMode == "" {
+	if sb.UsernsMode() == "" {
 		return
 	}
+	//if usernsMode, _ := v2.GetAnnotationValue(sb.Annotations(), v2.UsernsMode); usernsMode == "" {
+	//	return
+	//}
 
 	specgen.Config.Process.User.UID = toContainer(specgen.Config.Process.User.UID, mappings.UIDs())
 	gids := mappings.GIDs()
