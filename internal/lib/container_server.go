@@ -504,17 +504,14 @@ func (c *ContainerServer) recreateUserNamespace(ctx context.Context, sb *sandbox
 		})
 	}
 
-	idMappingOpts := &cstorage.IDMappingOptions{
-		UIDMap: uids,
-		GIDMap: gids,
-	}
+	idMappings := cstorage.NewIDMappingsFromMaps(uids, gids)
 
 	// Create the user namespace using the namespace manager
 	nsCfg := &nsmgr.PodNamespacesConfig{
 		Namespaces: []*nsmgr.PodNamespaceConfig{
 			{Type: nsmgr.USERNS},
 		},
-		IDMappings: idMappingOpts.ToIDMappings(),
+		IDMappings: idMappings,
 	}
 
 	namespaces, err := c.config.NamespaceManager().NewPodNamespaces(nsCfg)
