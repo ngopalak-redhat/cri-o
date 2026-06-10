@@ -25,6 +25,7 @@ import (
 
 	"github.com/cri-o/cri-o/internal/annotations"
 	"github.com/cri-o/cri-o/internal/config/node"
+	"github.com/cri-o/cri-o/internal/config/nsmgr"
 	"github.com/cri-o/cri-o/internal/hostport"
 	"github.com/cri-o/cri-o/internal/lib/constants"
 	"github.com/cri-o/cri-o/internal/lib/sandbox"
@@ -430,6 +431,13 @@ func (c *ContainerServer) LoadSandbox(ctx context.Context, id string) (sb *sandb
 		}
 	}
 
+	// If user namespace was not joined (path doesn't exist), recreate it from userns_options
+	if nsOpts.GetUsernsOptions() != nil && sb.UserNsPath() == "" {
+		if err := c.recreateUserNamespace(ctx, sb, nsOpts.GetUsernsOptions()); err != nil {
+			return sb, fmt.Errorf("failed to recreate user namespace: %w", err)
+		}
+	}
+
 	if err := scontainer.FromDisk(); err != nil {
 		return sb, fmt.Errorf("error reading sandbox state from disk %q: %w", scontainer.ID(), err)
 	}
@@ -465,6 +473,69 @@ func (c *ContainerServer) LoadSandbox(ctx context.Context, id string) (sb *sandb
 	}
 
 	return sb, nil
+}
+
+// recreateUserNamespace recreates the user namespace from userns_options when the namespace path no longer exists.
+// This can happen after CRI-O restart when namespace paths in /var/run are cleaned up.
+func (c *ContainerServer) recreateUserNamespace(ctx context.Context, sb *sandbox.Sandbox, usernsOpts *types.UserNamespace) error {
+	_, span := log.StartSpan(ctx)
+	defer span.End()
+
+	// Convert UserNamespace to IDMappings
+	if usernsOpts.GetMode() != types.NamespaceMode_POD {
+		return nil // Only handle POD mode
+	}
+
+	uids := make([]cstorage.IDMap, 0, len(usernsOpts.GetUids()))
+	for _, idMap := range usernsOpts.GetUids() {
+		uids = append(uids, cstorage.IDMap{
+			ContainerID: int(idMap.GetContainerId()),
+			HostID:      int(idMap.GetHostId()),
+			Size:        int(idMap.GetLength()),
+		})
+	}
+
+	gids := make([]cstorage.IDMap, 0, len(usernsOpts.GetGids()))
+	for _, idMap := range usernsOpts.GetGids() {
+		gids = append(gids, cstorage.IDMap{
+			ContainerID: int(idMap.GetContainerId()),
+			HostID:      int(idMap.GetHostId()),
+			Size:        int(idMap.GetLength()),
+		})
+	}
+
+	idMappings := &cstorage.IDMappingOptions{
+		UIDMap: uids,
+		GIDMap: gids,
+	}
+
+	// Create the user namespace using the namespace manager
+	nsCfg := &nsmgr.PodNamespacesConfig{
+		Namespaces: []nsmgr.PodNamespace{
+			{Type: nsmgr.USERNS},
+		},
+		IDMappings: idMappings,
+	}
+
+	namespaces, err := c.config.NamespaceManager().NewPodNamespaces(nsCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create user namespace: %w", err)
+	}
+
+	if len(namespaces) != 1 {
+		return fmt.Errorf("expected 1 namespace, got %d", len(namespaces))
+	}
+
+	// Join the newly created user namespace
+	if err := sb.UserNsJoin(namespaces[0].Path()); err != nil {
+		// Clean up on failure
+		if removeErr := namespaces[0].Remove(); removeErr != nil {
+			logrus.Errorf("Failed to remove user namespace after join failure: %v", removeErr)
+		}
+		return fmt.Errorf("failed to join recreated user namespace: %w", err)
+	}
+
+	return nil
 }
 
 var ErrIsNonCrioContainer = errors.New("non CRI-O container")
