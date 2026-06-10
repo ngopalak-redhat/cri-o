@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"go.podman.io/common/pkg/hooks"
 	cstorage "go.podman.io/storage"
+	"go.podman.io/storage/pkg/idtools"
 	"go.podman.io/storage/pkg/ioutils"
 	cmount "go.podman.io/storage/pkg/mount"
 	"go.podman.io/storage/pkg/truncindex"
@@ -486,25 +487,25 @@ func (c *ContainerServer) recreateUserNamespace(ctx context.Context, sb *sandbox
 		return nil // Only handle POD mode
 	}
 
-	uids := make([]cstorage.IDMap, 0, len(usernsOpts.GetUids()))
+	uids := make([]idtools.IDMap, 0, len(usernsOpts.GetUids()))
 	for _, idMap := range usernsOpts.GetUids() {
-		uids = append(uids, cstorage.IDMap{
+		uids = append(uids, idtools.IDMap{
 			ContainerID: int(idMap.GetContainerId()),
 			HostID:      int(idMap.GetHostId()),
 			Size:        int(idMap.GetLength()),
 		})
 	}
 
-	gids := make([]cstorage.IDMap, 0, len(usernsOpts.GetGids()))
+	gids := make([]idtools.IDMap, 0, len(usernsOpts.GetGids()))
 	for _, idMap := range usernsOpts.GetGids() {
-		gids = append(gids, cstorage.IDMap{
+		gids = append(gids, idtools.IDMap{
 			ContainerID: int(idMap.GetContainerId()),
 			HostID:      int(idMap.GetHostId()),
 			Size:        int(idMap.GetLength()),
 		})
 	}
 
-	idMappings := cstorage.NewIDMappingsFromMaps(uids, gids)
+	idMappings := idtools.NewIDMappingsFromMaps(uids, gids)
 
 	// Create the user namespace using the namespace manager
 	nsCfg := &nsmgr.PodNamespacesConfig{
