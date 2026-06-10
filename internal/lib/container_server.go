@@ -431,15 +431,37 @@ func (c *ContainerServer) LoadSandbox(ctx context.Context, id string) (sb *sandb
 	}
 
 	// If user namespace was not joined (path doesn't exist), recreate it from userns_options
-	log.Infof(ctx, "USERNS DEBUG: LoadSandbox for %s - nsOpts.GetUsernsOptions()=%v, sb.UserNsPath()=%s", id, nsOpts.GetUsernsOptions() != nil, sb.UserNsPath())
-	if nsOpts.GetUsernsOptions() != nil && sb.UserNsPath() != "" {
-		// Check if the user namespace path actually exists
-		if _, err := os.Stat(sb.UserNsPath()); os.IsNotExist(err) {
-			log.Infof(ctx, "User namespace path %s does not exist for sandbox %s, attempting to recreate from userns_options", sb.UserNsPath(), id)
+	log.Infof(ctx, "USERNS DEBUG: LoadSandbox for %s - nsOpts.GetUsernsOptions()=%v, sb.UserNsPath()='%s'", id, nsOpts.GetUsernsOptions() != nil, sb.UserNsPath())
+	if nsOpts.GetUsernsOptions() != nil {
+		needsRecreate := false
+		userNsPath := sb.UserNsPath()
+
+		if userNsPath == "" {
+			log.Infof(ctx, "USERNS DEBUG: User namespace path is EMPTY for sandbox %s, will recreate from userns_options", id)
+			needsRecreate = true
+		} else {
+			// Check if the user namespace path actually exists
+			log.Infof(ctx, "USERNS DEBUG: Checking if path exists: %s", userNsPath)
+			statInfo, statErr := os.Stat(userNsPath)
+			if statErr != nil {
+				if os.IsNotExist(statErr) {
+					log.Infof(ctx, "USERNS DEBUG: Path does NOT exist (IsNotExist): %s - will recreate", userNsPath)
+					needsRecreate = true
+				} else {
+					log.Infof(ctx, "USERNS DEBUG: Error checking path %s: %v - will recreate", userNsPath, statErr)
+					needsRecreate = true
+				}
+			} else {
+				log.Infof(ctx, "USERNS DEBUG: Path EXISTS: %s (mode: %v, size: %d) - no need to recreate", userNsPath, statInfo.Mode(), statInfo.Size())
+			}
+		}
+
+		if needsRecreate {
+			log.Infof(ctx, "USERNS DEBUG: Calling recreateUserNamespace for sandbox %s", id)
 			if err := c.recreateUserNamespace(ctx, sb, nsOpts.GetUsernsOptions()); err != nil {
 				return sb, fmt.Errorf("failed to recreate user namespace: %w", err)
 			}
-			log.Infof(ctx, "Successfully recreated user namespace for sandbox %s at path %s", id, sb.UserNsPath())
+			log.Infof(ctx, "USERNS DEBUG: Successfully recreated user namespace for sandbox %s at new path %s", id, sb.UserNsPath())
 		}
 	}
 
