@@ -636,6 +636,11 @@ func (s *Server) runPodSandbox(ctx context.Context, req *types.RunPodSandboxRequ
 		return nil, err
 	}
 
+	// Add userns-mode annotation if set, so it persists across CRI-O restarts
+	if usernsMode != "" {
+		g.AddAnnotation(v2.UsernsMode, usernsMode)
+	}
+
 	if err := s.setupSandboxPortMappings(sbox, g); err != nil {
 		return nil, err
 	}
