@@ -6,8 +6,8 @@ import (
 	types "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
-// convertOCIToStorageIDMappings converts OCI runtime spec ID mappings to storage ID mappings.
-func convertOCIToStorageIDMappings(uidMappings, gidMappings []rspec.LinuxIDMapping) *idtools.IDMappings {
+// ConvertOCIToStorageIDMappings converts OCI runtime spec ID mappings to storage ID mappings.
+func ConvertOCIToStorageIDMappings(uidMappings, gidMappings []rspec.LinuxIDMapping) *idtools.IDMappings {
 	if len(uidMappings) == 0 || len(gidMappings) == 0 {
 		return nil
 	}
