@@ -385,25 +385,10 @@ func (s *Server) getSandboxIDMappings(ctx context.Context, sb *libsandbox.Sandbo
 		return nil, err
 	}
 
-	mappings := convertToStorageIDMappings(uids, gids)
+	mappings := lib.ConvertOCIToStorageIDMappings(uids, gids)
 	ic.SetIDMappings(mappings)
 
 	return mappings, nil
-}
-
-func convertToStorageIDMappings(uidMappings, gidMappings []spec.LinuxIDMapping) *idtools.IDMappings {
-	uids := make([]idtools.IDMap, len(uidMappings))
-	gids := make([]idtools.IDMap, len(gidMappings))
-
-	for i, v := range uidMappings {
-		uids[i] = idtools.IDMap{ContainerID: int(v.ContainerID), HostID: int(v.HostID), Size: int(v.Size)}
-	}
-
-	for i, v := range gidMappings {
-		gids[i] = idtools.IDMap{ContainerID: int(v.ContainerID), HostID: int(v.HostID), Size: int(v.Size)}
-	}
-
-	return idtools.NewIDMappingsFromMaps(uids, gids)
 }
 
 func (s *Server) runPodSandbox(ctx context.Context, req *types.RunPodSandboxRequest) (resp *types.RunPodSandboxResponse, retErr error) {
