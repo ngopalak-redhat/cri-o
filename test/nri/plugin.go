@@ -32,6 +32,9 @@ type plugin struct {
 	postCreateContainer func(*plugin, *api.PodSandbox, *api.Container) error
 	updateContainer     func(*plugin, *api.PodSandbox, *api.Container) ([]*api.ContainerUpdate, error)
 	stopContainer       func(*plugin, *api.PodSandbox, *api.Container) ([]*api.ContainerUpdate, error)
+
+	// Configurable delays for testing race conditions
+	runPodSandboxDelay time.Duration
 }
 
 type event struct {
@@ -76,6 +79,12 @@ func WithStopHandler(fn func(*plugin, *api.PodSandbox, *api.Container) ([]*api.C
 func WithUpdateHandler(fn func(*plugin, *api.PodSandbox, *api.Container) ([]*api.ContainerUpdate, error)) PluginOption {
 	return func(p *plugin) {
 		p.updateContainer = fn
+	}
+}
+
+func WithRunPodSandboxDelay(delay time.Duration) PluginOption {
+	return func(p *plugin) {
+		p.runPodSandboxDelay = delay
 	}
 }
 
@@ -188,6 +197,11 @@ func (p *plugin) Synchronize(_ context.Context, pods []*api.PodSandbox, ctrs []*
 func (p *plugin) RunPodSandbox(_ context.Context, pod *api.PodSandbox) error {
 	if !p.inNamespace(pod.GetNamespace()) {
 		return nil
+	}
+
+	// Apply configured delay for testing race conditions
+	if p.runPodSandboxDelay > 0 {
+		time.Sleep(p.runPodSandboxDelay)
 	}
 
 	p.Lock()
